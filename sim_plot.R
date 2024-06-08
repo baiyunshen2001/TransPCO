@@ -72,13 +72,12 @@ p_null_all$'p.null.minp' <- apply(z_null, 1, function(x) min(1-pchisq(x^2, 1))*l
 oracle_thre <- 0.1
 
 var.b <- 0.001
-caus <- 0.3
+caus <- 0.5
 N <- 500
 
 N.sample <- 10^4
-N.sim <- 10^2
+N.sim <- 100
 
-sigma_trunc_inv <- eigen_vec[, which(eigen_lamb>oracle_thre)] %*% diag(1/eigen_lamb[eigen_lamb>oracle_thre]) %*% t(eigen_vec[, which(eigen_lamb>oracle_thre)])
 
 
 N.seq <- c(200, 400, 600, 800)
@@ -98,11 +97,6 @@ for(i in 1:N.sim){
   
   for(model in models){
     Z.alt <- rmvnorm(N.sample, B[, model], Sigma)
-    
-    # Oracle
-    method.tmp <- "Oracle"
-    T.oracle <- as.numeric(Z.alt %*% sigma_trunc_inv %*% B[, model])
-    p_alt_all[, method.tmp, model, i] <- 1-pchisq((T.oracle/as.numeric(sqrt(t(B)[model, ] %*% sigma_trunc_inv %*% B[, model])))^2, 1)
     
     # PC1
     method.tmp <- "PC1"
@@ -165,9 +159,9 @@ res.alt=data.frame(power=res_power,
                    Method=rep(c("PCO","PC1","MinP"),each=4),
                    sample_size=rep(c(200,400,600,800),3))
 
-png(filename = "power_simulation_samplesize.png",width = 300,height = 300)
+png(filename = "power_simulation_samplesize.png",width = 500,height = 300)
 ggplot(data=res.alt,aes(x=sample_size,y=power,color=Method,group=Method))+
-  geom_line()+
+  geom_line(size=1)+
   geom_point()+
-  labs(x="Sample Size",y="Power")
+  labs(x="Sample Size",y="Power",title = " Power of three methods across different sample sizes")
 dev.off()

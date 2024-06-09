@@ -101,7 +101,7 @@ for(i in 1:N.sim){
     # PC1
     method.tmp <- "PC1"
     PC1 <- Z.alt %*% eigen_vec[, 1]
-    p_alt_all[, method.tmp, model, i] <- as.numeric(2*pnorm(-abs(PC1/sqrt(eigen_vec[1]))))
+    p_alt_all[, method.tmp, model, i] <- as.numeric(2*pnorm(-abs(PC1/sqrt(eigen_lamb[1]))))
     
     # univariate minp
     method.tmp <- "minp"

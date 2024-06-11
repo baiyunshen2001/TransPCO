@@ -36,7 +36,7 @@ dynamicMods = cutreeDynamic(dendro = geneTree,  method="tree", minClusterSize = 
 table(dynamicMods)
 
 
-module=datExpr[,dynamicMods==0]
+module=datExpr[,dynamicMods==3]
 
 dir_pco="./simulation/script_lambda0.1/"
 source(paste0(dir_pco, "ModifiedPCOMerged.R"))
@@ -159,9 +159,11 @@ res.alt=data.frame(power=res_power,
                    Method=rep(c("PCO","PC1","MinP"),each=4),
                    sample_size=rep(c(200,400,600,800),3))
 
-png(filename = "power_simulation_samplesize.png",width = 500,height = 300)
+png(filename = "power_simulation_samplesize_module3.png",width = 500,height = 300)
+
 ggplot(data=res.alt,aes(x=sample_size,y=power,color=Method,group=Method))+
   geom_line(size=1)+
   geom_point()+
-  labs(x="Sample Size",y="Power",title = " Power of three methods across different sample sizes")
+  labs(x="Sample Size",y="Power",title = " Power of three methods across different sample sizes module3")
+
 dev.off()

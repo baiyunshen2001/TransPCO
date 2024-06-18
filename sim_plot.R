@@ -167,3 +167,6 @@ ggplot(data=res.alt,aes(x=sample_size,y=power,color=Method,group=Method))+
   labs(x="Sample Size",y="Power",title = " Power of three methods across different sample sizes module8")
 
 dev.off()
+
+
+pheatmap::pheatmap(Z_matrix[1:1000,],cluster_rows = FALSE,cluster_cols = FALSE)

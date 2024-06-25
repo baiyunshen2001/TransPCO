@@ -37,36 +37,60 @@ table(dynamicMods)
 n_sim <- 10^3
 var.b <- 0.001
 caus <- 0.5
-Z_matrix=matrix(NA,nrow = 9000,ncol = 500)
-p_matrix=matrix(NA,nrow = 9000,ncol = 9)
-col=1
-for (i in 0:8) {
-  module=datExpr[,dynamicMods==i]
-  Sigma=as.matrix(cor(module))
-  SigmaO=ModifiedSigmaOEstimate(Sigma,method = "liu")
-  K=dim(Sigma)[1]
-  for (j in 1:9) {
-    
-    if(j==i+1){
-      beta.n <- rbind(as.matrix(rnorm(floor(caus*K), sd = sqrt(var.b))), as.matrix(rep(0, K-floor(caus*K))))
-      B=beta.n *sqrt(800)
-      Z.mat= rmvnorm(1000, B, Sigma)
-      p.mat= as.matrix(ModifiedPCOMerged(Z.mat=Z.mat, Sigma=Sigma, SigmaO=SigmaO,method = "liu"))
-    }
-    else{
-      Z.mat= rmvnorm(1000, rep(0, K), Sigma)
-      p.mat=as.matrix(ModifiedPCOMerged(
-        Z.mat = Z.mat, Sigma = Sigma, SigmaO = SigmaO, method = "liu"
-      ))
-    }
-    Z_matrix[(1000*(j-1)+1):(1000*j),col:(col+K-1)]=Z.mat
-    p_matrix[(1000*(j-1)+1):(1000*j),i+1]=p.mat
+#Z_matrix=matrix(NA,nrow = 9000,ncol = 500)
+#p_matrix=matrix(NA,nrow = 9000,ncol = 9)
+
+N.seq <- c(200, 400, 600, 800)
+models <- paste0("N=", N.seq)
+N.sim=10
+
+Z_matrix=NULL
+p_matrix=NULL
+
+for(model in models){
+  for (i in 1:2) {
+    Z_matrix[[model]][[i]]=matrix(NA,nrow = 9000,ncol = 500)
+    p_matrix[[model]][[i]]=matrix(NA,nrow = 9000,ncol = 9)
   }
-  col=col+K
 }
+
+for (i in 1:2) {
+  col=1
+  for (sel_module in 0:8) {
+    module=datExpr[,dynamicMods==sel_module]
+    Sigma=as.matrix(cor(module))
+    SigmaO=ModifiedSigmaOEstimate(Sigma,method = "liu")
+    K=dim(Sigma)[1]
+    B <- matrix(rep(NA, K*length(models)), ncol = length(models),
+                dimnames = list(NULL, models))
+    #beta.n <- as.matrix(rnorm(K, sd = sqrt(var.b)))
+    beta.n <- rbind(as.matrix(rnorm(floor(caus*K), sd = sqrt(var.b))), as.matrix(rep(0, K-floor(caus*K))))
+    B[, models] <- beta.n %*% sqrt(N.seq)
+    for (model in models) {
+      for (j in 1:9) {
+        if(j==sel_module+1){
+          Z.mat= rmvnorm(1000, B[,model], Sigma)
+          p.mat= as.matrix(ModifiedPCOMerged(Z.mat=Z.mat, Sigma=Sigma, SigmaO=SigmaO,method = "liu"))
+        }
+        else{
+          Z.mat= rmvnorm(1000, rep(0, K), Sigma)
+          p.mat=as.matrix(ModifiedPCOMerged(
+            Z.mat = Z.mat, Sigma = Sigma, SigmaO = SigmaO, method = "liu"
+          ))
+        }
+        Z_matrix[[model]][[i]][(1000*(j-1)+1):(1000*j),col:(col+K-1)]=Z.mat
+        p_matrix[[model]][[i]][(1000*(j-1)+1):(1000*j),sel_module+1]=p.mat
+      }
+    }
+    col=col+K
+  }
+  cat("Simulation: ", i, "\n")
+}
+
+
 
 saveRDS(Z_matrix,fil="Z_matrix.rds")
 saveRDS(p_matrix,fil="p_matrix.rds")
 
 
-
+Z_matrix[["N=800"]][[1]]

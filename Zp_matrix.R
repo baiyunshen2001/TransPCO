@@ -3,6 +3,7 @@ library(flashClust)
 library(mvtnorm)
 library(data.table)
 library(tidyverse)
+set.seed(123456)
 options(stringsAsFactors = FALSE);
 enableWGCNAThreads()
 load("oed.RData")
@@ -43,19 +44,18 @@ caus <- 0.5
 N.seq <- c(200, 400, 600, 800)
 models <- paste0("N=", N.seq)
 N.sim=10
-
+col=1
 Z_matrix=NULL
 p_matrix=NULL
 
 for(model in models){
-  for (i in 1:2) {
+  for (i in 1:N.sim) {
     Z_matrix[[model]][[i]]=matrix(NA,nrow = 9000,ncol = 500)
     p_matrix[[model]][[i]]=matrix(NA,nrow = 9000,ncol = 9)
   }
 }
 
-for (i in 1:2) {
-  col=1
+
   for (sel_module in 0:8) {
     module=datExpr[,dynamicMods==sel_module]
     Sigma=as.matrix(cor(module))
@@ -66,6 +66,8 @@ for (i in 1:2) {
     #beta.n <- as.matrix(rnorm(K, sd = sqrt(var.b)))
     beta.n <- rbind(as.matrix(rnorm(floor(caus*K), sd = sqrt(var.b))), as.matrix(rep(0, K-floor(caus*K))))
     B[, models] <- beta.n %*% sqrt(N.seq)
+    for (i in 1:N.sim) {
+      col=1
     for (model in models) {
       for (j in 1:9) {
         if(j==sel_module+1){
@@ -82,15 +84,52 @@ for (i in 1:2) {
         p_matrix[[model]][[i]][(1000*(j-1)+1):(1000*j),sel_module+1]=p.mat
       }
     }
+    
+    cat("module",sel_module," Simulation: ", i, "\n")
+    }
     col=col+K
-  }
-  cat("Simulation: ", i, "\n")
 }
 
 
 
-saveRDS(Z_matrix,fil="Z_matrix.rds")
-saveRDS(p_matrix,fil="p_matrix.rds")
+saveRDS(Z_matrix,file ="Z_matrix.rds")
+saveRDS(p_matrix,file ="p_matrix.rds")
+
+res_error=NULL
+for (sel_module in 0:8) {
+  for(model in models){
+    for (i in 1:N.sim) {
+      res_error[[paste0("module=",sel_module)]][[model]][i]=c(rep(NA,N.sim))
+    }
+  }
+}
+
+for (sel_module in 0:8) {
+  for(model in models){
+    for (i in 1:N.sim) {
+    res_error[[paste0("module=",sel_module)]][[model]][i]=sum(qvalue::qvalue(
+      as.numeric(p_matrix[[model]][[i]][((sel_module)*1000+1):((sel_module+1)*1000),-(sel_module+1)]),pi0 = 1
+    )$qvalue<0.05)/8000
+    }
+  }
+}
+
+res_power=NULL
+for(model in models){
+  for (i in 1:N.sim) {
+    res.pow=c()
+    for (sel_module in 0:8) {
+      res.pow=c(res.pow,as.numeric(p_matrix[[model]][[i]][((sel_module)*1000+1):((sel_module+1)*1000),(sel_module+1)]))
+    }
+    res_power[[model]][i]=sum(qvalue::qvalue(res.pow,pi0 = 1)$qvalue<0.05)/length(res.pow)
+  }
+}
+
+saveRDS(res_error,file = )
 
 
-Z_matrix[["N=800"]][[1]]
+
+p_matrix[["N=800"]][[1]][1:1000,1]
+p_matrix[["N=800"]][[2]]
+
+sum(qvalue::qvalue(p_matrix[["N=800"]][[1]][1:1000,-1],pi0 = 1)$qvalue<0.05)/8000

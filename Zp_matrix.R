@@ -3,6 +3,19 @@ library(flashClust)
 library(mvtnorm)
 library(data.table)
 library(tidyverse)
+
+setwd("D:/Jupyter_notebook/TransPCO")
+dir_pco="./simulation/script_lambda0.1/"
+source(paste0(dir_pco, "ModifiedPCOMerged.R"))
+source(paste0(dir_pco, "liu.R"))
+source(paste0(dir_pco, "liumod.R"))
+source(paste0(dir_pco, "davies.R"))
+dyn.load(paste0(dir_pco, "qfc.so"))
+source(paste0(dir_pco, "ModifiedSigmaOEstimate.R"))
+dir_ARCHIE="./ARCHIE/codes/"
+source(paste0(dir_ARCHIE,"main.R"))
+source(paste0(dir_ARCHIE,"helper.R"))
+
 set.seed(123456)
 options(stringsAsFactors = FALSE);
 enableWGCNAThreads()
@@ -45,6 +58,9 @@ N.seq <- c(200, 400, 600, 800)
 models <- paste0("N=", N.seq)
 N.sim=10
 col=1
+
+
+
 Z_matrix=NULL
 p_matrix=NULL
 
@@ -55,7 +71,7 @@ for(model in models){
   }
 }
 
-
+col=1
   for (sel_module in 0:8) {
     module=datExpr[,dynamicMods==sel_module]
     Sigma=as.matrix(cor(module))
@@ -66,8 +82,9 @@ for(model in models){
     #beta.n <- as.matrix(rnorm(K, sd = sqrt(var.b)))
     beta.n <- rbind(as.matrix(rnorm(floor(caus*K), sd = sqrt(var.b))), as.matrix(rep(0, K-floor(caus*K))))
     B[, models] <- beta.n %*% sqrt(N.seq)
+    
     for (i in 1:N.sim) {
-      col=1
+      
     for (model in models) {
       for (j in 1:9) {
         if(j==sel_module+1){
@@ -95,6 +112,14 @@ for(model in models){
 saveRDS(Z_matrix,file ="Z_matrix.rds")
 saveRDS(p_matrix,file ="p_matrix.rds")
 
+Z_matrix=readRDS("Z_matrix.rds")
+p_matrix=readRDS("p_matrix.rds")
+
+library(PMA)
+a = PMD(Z_matrix$`N=800`[[1]], K=9, sumabsu = 30, sumabsv = 5, type = "standard", center = FALSE)
+View(a$u)
+View(a$v)
+
 res_error=NULL
 for (sel_module in 0:8) {
   for(model in models){
@@ -116,7 +141,7 @@ for (sel_module in 0:8) {
 
 res_power=NULL
 for(model in models){
-  for (i in 1:N.sim) {
+  for (i in 1:10) {
     res.pow=c()
     for (sel_module in 0:8) {
       res.pow=c(res.pow,as.numeric(p_matrix[[model]][[i]][((sel_module)*1000+1):((sel_module+1)*1000),(sel_module+1)]))
@@ -125,11 +150,81 @@ for(model in models){
   }
 }
 
-saveRDS(res_error,file = )
 
 
+sum(is.na(Z_matrix[["N=800"]][[10]]))
 
-p_matrix[["N=800"]][[1]][1:1000,1]
-p_matrix[["N=800"]][[2]]
+library(profvis)
 
-sum(qvalue::qvalue(p_matrix[["N=800"]][[1]][1:1000,-1],pi0 = 1)$qvalue<0.05)/8000
+p=profvis({
+  
+  Sigma_GG <- diag(1,nrow = 9000,ncol=9000) #9000*9000
+  Sigma_EE <- diag(1,nrow=500,ncol=500) ##500*500 #block diag #identity
+  Sigma_GE <- Z_matrix[["N=800"]][[1]] / sqrt(800) #9000*500
+  res.alt2 <- archie_work(Sigma_GE, Sigma_GG, Sigma_EE,K=9, verbose = FALSE)
+  saveRDS(res.alt2,file = "res_archie_test2.rds")
+})
+htmlwidgets::saveWidget(p, "profile_archie.html")
+
+#Sigma_GG <- diag(1,nrow = 9000,ncol=9000) #9000*9000
+#Sigma_EE <- diag(1,nrow=500,ncol=500) ##500*500 #block diag #identity
+#Sigma_GE <- Z_matrix[["N=800"]][[1]] / sqrt(800) #9000*500
+#res.alt <- archie_work(Sigma_GE, Sigma_GG, Sigma_EE,K=9, verbose = FALSE)
+
+
+saveRDS(res.alt,file = "res_archie.rds")
+res.alt=readRDS("res_archie.rds")
+
+for(i in 4:5){
+  Sigma_GG <- diag(1,nrow = 9000,ncol=9000) #9000*9000
+  Sigma_EE <- diag(1,nrow=500,ncol=500) ##500*500 #block diag #identity
+  Sigma_GE <- Z_matrix[["N=800"]][[i]] / sqrt(800) #9000*500
+  res.alt <- archie_work(Sigma_GE, Sigma_GG, Sigma_EE,K=9, verbose = FALSE)
+  file.name=paste0("res_archie",i,".rds")
+  saveRDS(res.alt,file = file.name)
+}
+
+pheatmap::pheatmap(cor(Z_matrix[["N=800"]][[2]]),cluster_rows = FALSE,cluster_cols = FALSE)
+
+pheatmap::pheatmap(Z_matrix[["N=800"]][[1]],cluster_rows = FALSE,cluster_cols = FALSE)
+module_exp=datExpr[,dynamicMods==0]
+cor(module_exp)
+
+res.archie=readRDS("res_archie.rds")
+
+View(res.archie$vs)
+
+
+for (i in 0:8) {
+  module=datExpr[,dynamicMods==i]
+  Sigma=as.matrix(cor(module))
+  saveRDS(Sigma,file = paste0("Sigma_module",i,".rds"))
+}
+
+num_nz=c()
+for (i in 1:9) {
+  num_nz[i]=sum(res.archie$us[,i]!=0)
+}
+
+ind=apply(res.archie$us, 2, function(x){
+  index=which(x!=0)
+  block=floor(index/1000)
+  names(which.max(table(block)))
+})
+
+acc=c()
+fdr=c()
+for (i in 1:8) {
+  index=as.numeric(ind[[i]])
+  acc[i]=sum(res.archie$us[,i][(index*1000+1):((index+1)*1000)]!=0)/1000
+  fdr[i]=sum(res.archie$us[,i][-((index*1000+1):((index+1)*1000))]!=0)/num_nz[i]
+}
+
+res_archie=readRDS("res_archie.rds")
+res_archie_test=readRDS("res_archie_test2.rds")
+res_us=res_archie_test$us
+res_us[res_us!=0]=1
+sum(res_us!=res_archie$us)
+
+
+View(res_archie_test$us)

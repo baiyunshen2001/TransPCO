@@ -3,7 +3,9 @@ library(flashClust)
 library(mvtnorm)
 library(data.table)
 library(tidyverse)
+library(optparse)
 
+setwd("D:/Jupyter_notebook/TransPCO")
 dir_pco="./simulation/script_lambda0.1/"
 source(paste0(dir_pco, "ModifiedPCOMerged.R"))
 source(paste0(dir_pco, "liu.R"))
@@ -11,6 +13,10 @@ source(paste0(dir_pco, "liumod.R"))
 source(paste0(dir_pco, "davies.R"))
 dyn.load(paste0(dir_pco, "qfc.so"))
 source(paste0(dir_pco, "ModifiedSigmaOEstimate.R"))
+dir_ARCHIE="./ARCHIE/codes/"
+source(paste0(dir_ARCHIE,"main.R"))
+source(paste0(dir_ARCHIE,"helper.R"))
+
 
 options(stringsAsFactors = FALSE);
 enableWGCNAThreads()
@@ -44,6 +50,97 @@ dynamicMods = cutreeDynamic(dendro = geneTree,  method="tree", minClusterSize = 
 #the following command gives the module labels and the size of each module. Lable 0 is reserved for unassigned genes
 table(dynamicMods)
 
+
+
+#------------------------------------------------------------------------------------------
+
+
+
+datExpr=trans.oed[,501:1000]
+SubGeneNames=gene.names[501:1000]
+powers = c(c(1:10), seq(from = 12, to=20, by=2));
+sft=pickSoftThreshold(datExpr,dataIsExpr = TRUE,powerVector = powers,corFnc = cor,corOptions = list(use = 'p'),networkType = "unsigned")
+
+softPower = 7;
+
+#calclute the adjacency matrix
+adj= adjacency(datExpr,type = "unsigned", power = softPower);
+
+#turn adjacency matrix into topological overlap to minimize the effects of noise and spurious associations
+TOM=TOMsimilarityFromExpr(datExpr,networkType = "unsigned", TOMType = "unsigned", power = softPower);
+colnames(TOM) =rownames(TOM) =SubGeneNames
+dissTOM=1-TOM
+
+geneTree = flashClust(as.dist(dissTOM),method="average");
+minModuleSize = 20;
+
+# Module identification using dynamic tree cut
+
+dynamicMods2 = cutreeDynamic(dendro = geneTree,  method="tree", minClusterSize = minModuleSize);
+#dynamicMods = cutreeDynamic(dendro = geneTree, distM = dissTOM, method="hybrid", deepSplit = 2, pamRespectsDendro = FALSE, minClusterSize = minModuleSize);
+
+#the following command gives the module labels and the size of each module. Lable 0 is reserved for unassigned genes
+table(dynamicMods2)
+
+
+#--------------------------------------------------------------------------------------
+
+
+n=500;
+datExpr=trans.oed[,1001:1500]
+SubGeneNames=gene.names[1001:1500]
+powers = c(c(1:10), seq(from = 12, to=20, by=2));
+sft=pickSoftThreshold(datExpr,dataIsExpr = TRUE,powerVector = powers,corFnc = cor,corOptions = list(use = 'p'),networkType = "unsigned")
+
+softPower = 7;
+
+#calclute the adjacency matrix
+adj= adjacency(datExpr,type = "unsigned", power = softPower);
+
+#turn adjacency matrix into topological overlap to minimize the effects of noise and spurious associations
+TOM=TOMsimilarityFromExpr(datExpr,networkType = "unsigned", TOMType = "unsigned", power = softPower);
+colnames(TOM) =rownames(TOM) =SubGeneNames
+dissTOM=1-TOM
+
+geneTree = flashClust(as.dist(dissTOM),method="average");
+minModuleSize = 20;
+
+# Module identification using dynamic tree cut
+
+dynamicMods3 = cutreeDynamic(dendro = geneTree,  method="tree", minClusterSize = minModuleSize);
+#dynamicMods = cutreeDynamic(dendro = geneTree, distM = dissTOM, method="hybrid", deepSplit = 2, pamRespectsDendro = FALSE, minClusterSize = minModuleSize);
+
+#the following command gives the module labels and the size of each module. Lable 0 is reserved for unassigned genes
+table(dynamicMods3)
+
+
+
+#------------------------------------------------------------------------------------------
+
+i=9
+datExpr2=trans.oed[,501:1000]
+datExpr3=trans.oed[,1001:1500]
+for (sel_module in 1:8) {
+  module=datExpr2[,dynamicMods2==sel_module]
+  
+  Sigma=as.matrix(cor(module))
+  saveRDS(Sigma,file = paste0("Sigma_module",i,".rds"))
+  i=i+1
+}
+
+
+for (sel_module in 1:5) {
+  module=datExpr3[,dynamicMods3==sel_module]
+  
+  Sigma=as.matrix(cor(module))
+  saveRDS(Sigma,file = paste0("Sigma_module",i,".rds"))
+  i=i+1
+}
+
+#-----------------------------------------------------------------------------------------
+
+
+#sel_module=8
 for (sel_module in 8) {
   
 
@@ -170,12 +267,116 @@ dev.off()
 #save.image(file=image_name)
 }
 
-pheatmap::pheatmap(Z_matrix[1:1000,],cluster_rows = FALSE,cluster_cols = FALSE)
 
 
-p_val=runif(50)
-qvalue::qvalue(p_val,fdr.level = fdr_level)$qvalues
+
+cc_alt_all <- array(dim = c(1, 1, length(models), N.sim),
+                    dimnames = list(NULL, c("archie"), models, NULL))
+selected_gene_alt_all <- array(dim = c(1000, K, length(models), N.sim),
+                               dimnames = list(NULL, NULL, models, NULL))
+for(i in 1:N.sim){
+ #B <- matrix(rep(NA, K*length(models)), ncol = length(models),
+  #            dimnames = list(NULL, models))
+  #beta.n <- as.matrix(rnorm(K, sd = sqrt(var.b)))
+  #beta.n <- rbind(as.matrix(rnorm(floor(caus*K), sd = sqrt(var.b))), as.matrix(rep(0, K-floor(caus*K))))
+  #B[, models] <- beta.n %*% sqrt(N.seq)
+  
+  
+  # beta.n <- matrix(rep(NA, K*length(models)), ncol = length(models),
+  #             dimnames = list(NULL, models))
+  # beta.n[, models] <- sapply(var.seq, function(x)
+  #   as.matrix(c(rnorm(floor(caus*K), sd = sqrt(x)), rep(0, K-floor(caus*K)) ) ) )
+  
+  for(N in N.seq){
+    #Z.alt <- rmvnorm(N.sample, B[, model], Sigma) %>% t()
+    model=paste0("N=",N)
+    
+    # archie
+    Sigma_GG <- diag(1,nrow = 1000,ncol=1000) #9000*9000
+    Sigma_EE <- cor(datExpr[,dynamicMods==1])##500*500 #block diag #identity
+    Sigma_GE <- as.matrix(Z_matrix[[model]][[i]][1001:2000,(263+1):(263+44)]) #/ sqrt(N) #9000*500
+    # Sigma_GE <- beta.n[, model, drop = FALSE] / sqrt(as.numeric(str_extract(model, '0\\.\\d+')))
+    
+    
+    # us, vs, qs, K
+    # us and vs in the output represent the selected SNPs mapped to corresponding selected genes (1 indiciating selected, 0 indicating not selected). 
+    # In the output, note that SNPs 1 to 5 has been correctly mapped to genes 1 to 10 and SNPs 11 to 15 mapped to genes 11 to 20. 
+    # ARCHIE usually numerically determines the number of sparse canonical correlation components to be extracted, however that is customizable as well. 
+    # q is the aggregated measure of association explained by the corresponding component.
+    res.alt <- archie_work(Sigma_GE, Sigma_GG, Sigma_EE,K=9, verbose = FALSE)#K=9, K=20
+    
+    
+    cc_alt_all[, 'archie', model, i] <- max(res.alt$qs)
+    selected_gene_alt_all[, , model, i] <- res.alt$us[, which.max(res.alt$qs)]
+    
+  }
+  cat("Simulation: ", i, "\n")
+}
+
+# run archie test -----
+cc_null <- array(
+  dim = c(1, N.sim),
+  dimnames = list(c("archie"), NULL)
+)
+selected_gene_null <- array(
+  dim = c(44, N.sim),
+  dimnames = list(NULL, NULL)
+)
+for(i in 1:N.sim){
+  
+    
+  
+  ## null z
+  #z_null <- rmvnorm(N.sample, rep(0, K), Sigma) %>% t()
+  
+  ## archie input
+  Sigma_GG <- diag(1,nrow=1000,ncol=1000) #9000*9000
+  Sigma_EE <- cor(datExpr[,dynamicMods==1])##500*500 #block diag #identity
+  Sigma_GE <- Z_matrix[[model]][[i]][1:1000,(263+1):(263+44)] / sqrt(800) #9000*500
+  
+  
+  ## archie
+  res.null <- archie_work(Sigma_GE, Sigma_GG, Sigma_EE, verbose = FALSE)
+  
+  
+  ## save
+  cc_null_all[, i] <- max(res.null$qs)
+  selected_gene_null_all[, i] <- res.null$us[, which.max(res.null$qs)]
+  
+  
+  
+  cat("Simulation: ", i, "\n")
+}
+
+cc_alt <- cc_alt[,,,, drop = TRUE]
+cc_null <- cc_null[,, drop = TRUE]
+cc_null <- cc_null[!is.na(cc_null)]
 
 
-p_alt_all[,"PCO","N=800",8]
-z.alt.mat[["N=800"]][[8]]
+# empirical p -----
+n_null <- length(cc_null)
+
+emp_p <- apply(
+  cc_alt,
+  c(1, 2),
+  function(x) sum(cc_null > x)
+) / n_null
+
+
+# power -----
+## adjust p
+adj_p <- apply(
+  emp_p,
+  1,
+  function(x) qvalue::qvalue(x, fdr.level = 0.05)$qvalues
+) %>%
+  t()
+
+## power
+adj_power <- apply(adj_p, 1, function(x) sum(x < 0.05))
+
+sum(adj_power)
+
+pheatmap::pheatmap(Z_matrix[["N=800"]][[1]],cluster_rows = FALSE,cluster_cols = FALSE)
+module_exp=datExpr[,dynamicMods==0]
+cor(module_exp)

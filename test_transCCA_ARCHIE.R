@@ -8,7 +8,7 @@ source("W_calculation.R")
 source("PMD_dependence.R")
 source("transCCA_plot.R")
 #setwd("~/Library/CloudStorage/GoogleDrive-xwcaochn@gmail.com/My Drive/transQTL/transCCA/Simulation/releastic")
-setwd("D:/Jupyter_notebook/TransPCO")
+setwd("D:/TransPCO")
 files <- list.files("data/", full.names = TRUE)
 X <- Y_cis <- true_variants <- list()
 for (i.file in 1:length(files)){
